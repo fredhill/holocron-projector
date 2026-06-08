@@ -1,0 +1,64 @@
+/* Minimal CSS — easy to restyle later. */
+:root {
+  --fg: #1a1a1a;
+  --muted: #666;
+  --bg: #fafafa;
+  --border: #ddd;
+  --accent: #2a5;
+  --error: #c33;
+}
+* { box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--fg);
+  background: var(--bg);
+  margin: 0;
+  line-height: 1.5;
+}
+header {
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+  padding: 1rem 2rem;
+}
+header h1 { margin: 0; font-size: 1.4rem; }
+header a { color: var(--fg); text-decoration: none; }
+main { max-width: 1000px; margin: 2rem auto; padding: 0 2rem; }
+section { margin-bottom: 2.5rem; }
+h2 { border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--border); }
+th { background: #fff; font-weight: 600; }
+form.inline { display: inline-block; margin-right: 0.5rem; }
+button, .button {
+  background: #fff;
+  border: 1px solid var(--border);
+  padding: 0.4rem 0.8rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
+  color: var(--fg);
+  text-decoration: none;
+  display: inline-block;
+}
+button:hover, .button:hover { background: #f0f0f0; }
+button.link {
+  border: none;
+  background: none;
+  color: var(--error);
+  padding: 0;
+}
+fieldset { border: 1px solid var(--border); margin-bottom: 1rem; padding: 1rem; background: #fff; }
+legend { font-weight: 600; padding: 0 0.4rem; }
+label { display: block; margin-bottom: 0.6rem; }
+label input, label select { display: block; margin-top: 0.2rem; padding: 0.3rem; }
+input[type="text"], input:not([type]), input[type="number"], select {
+  border: 1px solid var(--border);
+  padding: 0.3rem 0.5rem;
+  border-radius: 3px;
+  font: inherit;
+  min-width: 12rem;
+}
+.muted { color: var(--muted); font-size: 0.9rem; }
+.error { color: var(--error); font-weight: 600; }
+.form-actions { display: flex; gap: 1rem; align-items: center; }
+code { background: #eee; padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.9em; }

@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.DS_Store
+*.swp
+*.swo
+*.log
+/data/
+holidays.local.json
+smb-credentials

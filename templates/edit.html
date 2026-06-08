@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit" if holiday else "New" }} holiday{% endblock %}
+{% block content %}
+
+<h2>{{ "Edit" if holiday else "New" }} holiday</h2>
+
+{% if error %}<p class="error">Error: {{ error }}</p>{% endif %}
+
+<form method="post" class="holiday-form">
+  <fieldset>
+    <legend>Basics</legend>
+    <label>Name <input name="name" value="{{ holiday.name if holiday else '' }}" required></label>
+    <label>Folder
+      <select name="folder" required>
+        {% set current = holiday.folder if holiday else '' %}
+        {% for f in folders %}
+          <option value="{{ f }}" {% if f == current %}selected{% endif %}>{{ f }}</option>
+        {% endfor %}
+        {% if current and current not in folders %}
+          <option value="{{ current }}" selected>{{ current }} (missing!)</option>
+        {% endif %}
+      </select>
+    </label>
+    <label>Priority <input type="number" name="priority" value="{{ holiday.priority if holiday else 10 }}"></label>
+    <label><input type="checkbox" name="enabled" {% if not holiday or holiday.enabled %}checked{% endif %}> Enabled</label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Rule</legend>
+    {% set rt = (holiday.rule.type if holiday else 'annual_date') %}
+    <label>Type
+      <select name="rule_type" id="rule_type">
+        {% for t in ['annual_date', 'annual_range', 'floating', 'easter', 'span'] %}
+          <option value="{{ t }}" {% if t == rt %}selected{% endif %}>{{ t }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <div class="rule-block" data-rule="annual_date">
+      <label>Date (MM-DD) <input name="rule_date" value="{{ holiday.rule.date if holiday and holiday.rule.type == 'annual_date' else '' }}"></label>
+      <label>Days before <input type="number" name="rule_days_before" value="{{ holiday.rule.days_before if holiday and holiday.rule.type == 'annual_date' else '' }}"></label>
+      <label>Days after <input type="number" name="rule_days_after" value="{{ holiday.rule.days_after if holiday and holiday.rule.type == 'annual_date' else '' }}"></label>
+    </div>
+
+    <div class="rule-block" data-rule="annual_range">
+      <label>Start (MM-DD) <input name="rule_start" value="{{ holiday.rule.start if holiday and holiday.rule.type == 'annual_range' else '' }}"></label>
+      <label>End (MM-DD) <input name="rule_end" value="{{ holiday.rule.end if holiday and holiday.rule.type == 'annual_range' else '' }}"></label>
+    </div>
+
+    <div class="rule-block" data-rule="floating">
+      <label>Month (1-12) <input type="number" name="rule_month" value="{{ holiday.rule.month if holiday and holiday.rule.type == 'floating' else '' }}"></label>
+      <label>Weekday
+        <select name="rule_weekday">
+          {% for w in ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'] %}
+            <option value="{{ w }}" {% if holiday and holiday.rule.type == 'floating' and holiday.rule.weekday == w %}selected{% endif %}>{{ w }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>n (1–5, or -1 = last) <input type="number" name="rule_n" value="{{ holiday.rule.n if holiday and holiday.rule.type == 'floating' else '' }}"></label>
+      <label>Days before <input type="number" name="rule_days_before" value="{{ holiday.rule.days_before if holiday and holiday.rule.type == 'floating' else '' }}"></label>
+      <label>Days after <input type="number" name="rule_days_after" value="{{ holiday.rule.days_after if holiday and holiday.rule.type == 'floating' else '' }}"></label>
+    </div>
+
+    <div class="rule-block" data-rule="easter">
+      <label>Days before Easter <input type="number" name="rule_days_before" value="{{ holiday.rule.days_before if holiday and holiday.rule.type == 'easter' else '' }}"></label>
+      <label>Days after Easter <input type="number" name="rule_days_after" value="{{ holiday.rule.days_after if holiday and holiday.rule.type == 'easter' else '' }}"></label>
+    </div>
+
+    <div class="rule-block" data-rule="span">
+      <p>Span runs from a start anchor to an end anchor. Each anchor can be a fixed date, a floating weekday, or Easter.</p>
+      {% for prefix, label in [('span_start','Start anchor'), ('span_end','End anchor')] %}
+        {% set src = (holiday.rule[prefix.split('_')[1]] if holiday and holiday.rule.type == 'span' else None) %}
+        {% set kind = 'date' if src and 'date' in src else ('floating' if src and 'floating' in src else ('easter' if src and 'easter' in src else 'date')) %}
+        <fieldset>
+          <legend>{{ label }}</legend>
+          <label>Kind
+            <select name="{{ prefix }}_kind">
+              {% for k in ['date','floating','easter'] %}
+                <option value="{{ k }}" {% if k == kind %}selected{% endif %}>{{ k }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>Date (MM-DD) <input name="{{ prefix }}_date" value="{{ src.date if src and 'date' in src else '' }}"></label>
+          <label>Month <input type="number" name="{{ prefix }}_month" value="{{ src.floating.month if src and 'floating' in src else '' }}"></label>
+          <label>Weekday
+            <select name="{{ prefix }}_weekday">
+              {% for w in ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'] %}
+                <option value="{{ w }}" {% if src and 'floating' in src and src.floating.weekday == w %}selected{% endif %}>{{ w }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>n <input type="number" name="{{ prefix }}_n" value="{{ src.floating.n if src and 'floating' in src else '' }}"></label>
+          <label>Offset days <input type="number" name="{{ prefix }}_offset_days" value="{{ (src.floating.offset_days if src and 'floating' in src else (src.easter.offset_days if src and 'easter' in src else '')) }}"></label>
+        </fieldset>
+      {% endfor %}
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Play windows</legend>
+    <p class="muted">Each <code>start</code>/<code>end</code> is either a clock time (<code>HH:MM</code>, or <code>24:00</code> for end-of-day) or a solar anchor (<code>sunrise</code>, <code>sunset</code>, <code>dawn</code>, <code>dusk</code>) with an optional offset like <code>dusk-00:15</code> or <code>sunset+00:30</code>. Leave blank to inherit the default (<code>dusk → 24:00</code>).</p>
+    <table id="windows">
+      <thead><tr><th>Start</th><th>End</th><th></th></tr></thead>
+      <tbody>
+        {% set wins = holiday.play_windows if holiday and holiday.play_windows else [] %}
+        {% for w in wins %}
+          <tr>
+            <td><input name="window_start" value="{{ w.start }}"></td>
+            <td><input name="window_end" value="{{ w.end }}"></td>
+            <td><button type="button" class="remove-window">Remove</button></td>
+          </tr>
+        {% endfor %}
+        <tr>
+          <td><input name="window_start" value=""></td>
+          <td><input name="window_end" value=""></td>
+          <td><button type="button" class="remove-window">Remove</button></td>
+        </tr>
+      </tbody>
+    </table>
+    <button type="button" id="add-window">+ Add window</button>
+  </fieldset>
+
+  <div class="form-actions">
+    <button type="submit">Save</button>
+    <a href="{{ url_for('index') }}">Cancel</a>
+  </div>
+</form>
+
+<script>
+  // Show/hide rule blocks based on type
+  const ruleSelect = document.getElementById('rule_type');
+  function syncRule() {
+    document.querySelectorAll('.rule-block').forEach(el => {
+      el.style.display = el.dataset.rule === ruleSelect.value ? '' : 'none';
+    });
+  }
+  ruleSelect.addEventListener('change', syncRule);
+  syncRule();
+
+  // Add/remove play-window rows
+  document.getElementById('add-window').addEventListener('click', () => {
+    const tbody = document.querySelector('#windows tbody');
+    const row = tbody.rows[0].cloneNode(true);
+    row.querySelectorAll('input').forEach(i => i.value = '');
+    tbody.appendChild(row);
+    wireRemove();
+  });
+  function wireRemove() {
+    document.querySelectorAll('.remove-window').forEach(btn => {
+      btn.onclick = () => {
+        const tbody = btn.closest('tbody');
+        if (tbody.rows.length > 1) btn.closest('tr').remove();
+        else btn.closest('tr').querySelectorAll('input').forEach(i => i.value = '');
+      };
+    });
+  }
+  wireRemove();
+</script>
+
+{% endblock %}

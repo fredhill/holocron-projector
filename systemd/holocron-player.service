@@ -1,0 +1,19 @@
+[Unit]
+Description=Holocron scheduler + player
+After=network-online.target mnt-jedi\x2darchives.automount
+Wants=network-online.target
+
+[Service]
+User=holocron
+SupplementaryGroups=video render
+StandardInput=tty
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+WorkingDirectory=/opt/holocron/src
+ExecStart=/opt/holocron/venv/bin/python /opt/holocron/src/player.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

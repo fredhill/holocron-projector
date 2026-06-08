@@ -1,0 +1,14 @@
+[Unit]
+Description=Holocron web config form
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=holocron
+WorkingDirectory=/opt/holocron/src
+ExecStart=/opt/holocron/venv/bin/python /opt/holocron/src/web.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

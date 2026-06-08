@@ -1,0 +1,50 @@
+{
+  "version": 3,
+  "location": { "lat": 45.5946, "lon": -121.1787, "tz": "America/Los_Angeles" },
+  "defaults": { "play_windows": [ { "start": "dusk", "end": "24:00" } ] },
+  "holidays": [
+    { "name": "New Year's Day", "folder": "New Years", "enabled": true, "priority": 10,
+      "rule": { "type": "annual_date", "date": "01-01" },
+      "play_windows": [
+        { "start": "00:00", "end": "01:00" },
+        { "start": "07:30", "end": "22:00" }
+      ] },
+
+    { "name": "Alexa's Birthday", "folder": "Birthday", "enabled": true, "priority": 30,
+      "rule": { "type": "annual_date", "date": "03-07" },
+      "play_windows": [ { "start": "07:30", "end": "22:00" } ] },
+
+    { "name": "St. Patrick's Day", "folder": "St Patricks", "enabled": true, "priority": 10,
+      "rule": { "type": "annual_date", "date": "03-17" } },
+
+    { "name": "Easter", "folder": "Easter", "enabled": true, "priority": 10,
+      "rule": { "type": "easter", "days_before": 2, "days_after": 0 } },
+
+    { "name": "Memorial Day", "folder": "Memorial Day", "enabled": true, "priority": 10,
+      "rule": { "type": "floating", "month": 5, "weekday": "monday", "n": -1, "days_before": 2, "days_after": 0 } },
+
+    { "name": "Star Wars Day", "folder": "Star Wars", "enabled": true, "priority": 20,
+      "rule": { "type": "annual_date", "date": "05-04" } },
+
+    { "name": "Independence Day", "folder": "Independence Day", "enabled": true, "priority": 10,
+      "rule": { "type": "annual_date", "date": "07-04" } },
+
+    { "name": "Danny's Birthday", "folder": "Birthday", "enabled": true, "priority": 30,
+      "rule": { "type": "annual_date", "date": "09-10" },
+      "play_windows": [ { "start": "07:30", "end": "22:00" } ] },
+
+    { "name": "Halloween", "folder": "Halloween", "enabled": true, "priority": 10,
+      "rule": { "type": "annual_range", "start": "10-01", "end": "10-31" } },
+
+    { "name": "Veterans Day", "folder": "Memorial Day", "enabled": true, "priority": 10,
+      "rule": { "type": "annual_date", "date": "11-11" } },
+
+    { "name": "Thanksgiving", "folder": "Thanksgiving", "enabled": true, "priority": 10,
+      "rule": { "type": "floating", "month": 11, "weekday": "thursday", "n": 4, "days_before": 3, "days_after": 0 } },
+
+    { "name": "Christmas", "folder": "Christmas", "enabled": true, "priority": 10,
+      "rule": { "type": "span",
+                "start": { "floating": { "month": 11, "weekday": "thursday", "n": 4, "offset_days": 1 } },
+                "end":   { "date": "12-31" } } }
+  ]
+}
