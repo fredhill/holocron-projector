@@ -63,6 +63,27 @@ MPV_ARGS = [
 log = logging.getLogger("holocron.player")
 
 
+def safe_folder(name: str, root: Path = VIDEO_ROOT) -> Path | None:
+    """Resolve a folder name under VIDEO_ROOT, rejecting traversal.
+
+    Returns the resolved Path if `name` is a direct child folder of `root`,
+    else None. Used to gate MQTT `force:<folder>` commands and any path
+    coming from external input.
+    """
+    if not name or "/" in name or "\\" in name or name in (".", ".."):
+        return None
+    try:
+        candidate = (root / name).resolve()
+        root_resolved = root.resolve()
+    except (OSError, RuntimeError):
+        return None
+    if candidate.parent != root_resolved:
+        return None
+    if not candidate.is_dir():
+        return None
+    return candidate
+
+
 # ---------- config loading w/ last-known-good ----------
 
 class ConfigStore:
@@ -70,8 +91,21 @@ class ConfigStore:
         self.path = path
         self.cfg: Optional[dict] = None
         self.last_error: Optional[str] = None
+        self.last_mtime: float = 0.0
+
+    def file_mtime(self) -> float:
+        try:
+            return self.path.stat().st_mtime
+        except OSError:
+            return 0.0
+
+    def changed_on_disk(self) -> bool:
+        """True if the config file mtime differs from what we last loaded."""
+        m = self.file_mtime()
+        return m != 0.0 and m != self.last_mtime
 
     def load(self) -> tuple[dict | None, str | None]:
+        mtime_at_read = self.file_mtime()
         try:
             raw = self.path.read_text()
             new = json.loads(raw)
@@ -95,6 +129,7 @@ class ConfigStore:
 
         self.cfg = new
         self.last_error = None
+        self.last_mtime = mtime_at_read
         log.info("config loaded: %d holidays", len(new.get("holidays", [])))
         return self.cfg, None
 
@@ -137,14 +172,33 @@ class MpvProc:
             self.stop()
 
         log.info("starting mpv with %d files from %s", len(files), folder)
+        # Drop --really-quiet so warnings reach stderr; keep noise low with msg-level.
+        args = [a for a in MPV_ARGS if a != "--really-quiet"] + [
+            "--msg-level=all=warn",
+            f"--playlist={PLAYLIST_PATH}",
+        ]
         self.proc = subprocess.Popen(
-            MPV_ARGS + [f"--playlist={PLAYLIST_PATH}"],
+            args,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
         )
         self.current_folder = folder.name
+        # daemon thread drains stderr into journald; dies when proc closes its pipe
+        threading.Thread(
+            target=self._drain_stderr, args=(self.proc,), daemon=True,
+        ).start()
         return True
+
+    @staticmethod
+    def _drain_stderr(proc: subprocess.Popen) -> None:
+        if proc.stderr is None:
+            return
+        for line in proc.stderr:
+            line = line.rstrip()
+            if line:
+                log.info("mpv: %s", line)
 
     def stop(self) -> None:
         if not self.is_running():
@@ -183,6 +237,7 @@ class Holocron:
         self.manual_folder: Optional[str] = None  # set by `force:<folder>`; None = forced-stop
         self.last_projector_state: Optional[str] = None
         self.last_active_holiday: Optional[str] = None
+        self.last_status: Optional[str] = None
         self.reload_requested = False
         self.shutdown = threading.Event()
 
@@ -191,12 +246,22 @@ class Holocron:
     def _on_connect(self, client, userdata, flags, reason_code, properties):
         log.info("MQTT connected: %s", reason_code)
         client.subscribe(T_CMD)
+        # Force the next tick to republish state. Retained MQTT topics can go
+        # stale after a Pi reboot if the first publish raced the connect; this
+        # guarantees Homey sees the true state within one tick of (re)connect.
+        self.last_projector_state = None
+        self.last_active_holiday = None
+        self.last_status = None
 
     def _on_message(self, client, userdata, msg):
         payload = msg.payload.decode("utf-8", "replace").strip()
         log.info("cmd: %s", payload)
         if payload.startswith("force:"):
             folder = payload[len("force:"):].strip()
+            if safe_folder(folder) is None:
+                log.warning("force: rejected, not a valid subfolder: %r", folder)
+                self._set_status(f"error:bad folder: {folder}")
+                return
             self.manual_mode = True
             self.manual_folder = folder
         elif payload == "stop":
@@ -224,16 +289,27 @@ class Holocron:
             self._publish(T_HOLIDAY, name, retain=True)
             self.last_active_holiday = name
 
+    def _set_status(self, status: str) -> None:
+        if status != self.last_status:
+            self._publish(T_STATUS, status, retain=True)
+            self.last_status = status
+
     # --- evaluation ---
 
     def evaluate(self) -> None:
         """One tick of the schedule loop."""
+        # mtime fallback: if the file changed on disk (web form edit) and the
+        # MQTT reload command was missed (broker hiccup), still pick it up.
+        if self.cfg_store.changed_on_disk():
+            log.info("config file changed on disk — reloading")
+            self.cfg_store.load()
+
         cfg = self.cfg_store.cfg
         if cfg is None:
             # try to load; if still nothing, idle
             cfg, err = self.cfg_store.load()
             if cfg is None:
-                self._publish(T_STATUS, f"error:{err}", retain=True)
+                self._set_status(f"error:{err}")
                 self._set_projector("off")
                 if self.mpv.is_running():
                     self.mpv.stop()
@@ -242,26 +318,26 @@ class Holocron:
         # manual override?
         if self.manual_mode:
             if self.manual_folder:
-                folder = VIDEO_ROOT / self.manual_folder
-                if not folder.is_dir():
-                    self._publish(T_STATUS, f"error:folder not found: {self.manual_folder}", retain=True)
+                folder = safe_folder(self.manual_folder)
+                if folder is None:
+                    self._set_status(f"error:bad folder: {self.manual_folder}")
                     self._set_projector("off")
                     if self.mpv.is_running():
                         self.mpv.stop()
                     return
                 if self.mpv.current_folder != self.manual_folder or not self.mpv.is_running():
                     if not self.mpv.start(folder):
-                        self._publish(T_STATUS, f"error:no videos in {self.manual_folder}", retain=True)
+                        self._set_status(f"error:no videos in {self.manual_folder}")
                         self._set_projector("off")
                         return
                 self._set_projector("on")
-                self._publish(T_STATUS, f"manual:{self.manual_folder}", retain=True)
+                self._set_status(f"manual:{self.manual_folder}")
             else:
                 # forced stop
                 if self.mpv.is_running():
                     self.mpv.stop()
                 self._set_projector("off")
-                self._publish(T_STATUS, "idle", retain=True)
+                self._set_status("idle")
             return
 
         # normal scheduling
@@ -282,7 +358,7 @@ class Holocron:
             solar = solar_for(today, loc["lat"], loc["lon"], tz)
         except Exception as e:
             log.error("solar computation failed: %s", e)
-            self._publish(T_STATUS, f"error:solar: {e}", retain=True)
+            self._set_status(f"error:solar: {e}")
             self._goto_idle()
             return
 
@@ -292,18 +368,18 @@ class Holocron:
         )
 
         if S.in_any_window(now, windows):
-            folder = VIDEO_ROOT / holiday["folder"]
-            if not folder.is_dir():
-                self._publish(T_STATUS, f"error:folder not found: {holiday['folder']}", retain=True)
+            folder = safe_folder(holiday["folder"])
+            if folder is None:
+                self._set_status(f"error:bad folder: {holiday['folder']}")
                 self._goto_idle()
                 return
             if self.mpv.current_folder != holiday["folder"] or not self.mpv.is_running():
                 if not self.mpv.start(folder):
-                    self._publish(T_STATUS, f"error:no videos in {holiday['folder']}", retain=True)
+                    self._set_status(f"error:no videos in {holiday['folder']}")
                     self._goto_idle()
                     return
             self._set_projector("on")
-            self._publish(T_STATUS, f"playing:{holiday['name']}", retain=True)
+            self._set_status(f"playing:{holiday['name']}")
         else:
             self._goto_idle()
 
@@ -311,7 +387,7 @@ class Holocron:
         if self.mpv.is_running():
             self.mpv.stop()
         self._set_projector("off")
-        self._publish(T_STATUS, "idle", retain=True)
+        self._set_status("idle")
 
     # --- run ---
 

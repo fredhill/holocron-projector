@@ -192,3 +192,89 @@ def test_validate_location_rejects_non_numeric():
     errs = S.validate_location({"lat": "north", "lon": "west", "tz": "UTC"})
     assert any("lat" in e for e in errs)
     assert any("lon" in e for e in errs)
+
+
+# ---------- window spec / rule type validation ----------
+
+@pytest.mark.parametrize("spec", [
+    "00:00", "07:30", "23:59", "24:00",
+    "dusk", "sunrise", "sunset", "dawn",
+    "dusk-00:15", "sunset+00:30", "dawn+01:00",
+])
+def test_valid_window_specs(spec):
+    assert S.is_valid_window_spec(spec)
+
+
+@pytest.mark.parametrize("spec", [
+    "", "25:00", "07:60", "7:30",
+    "dusck", "dusk+1:00", "dusk+25:00", "dusk -00:15",
+    "12:00-00:15", "noon",
+])
+def test_invalid_window_specs(spec):
+    assert not S.is_valid_window_spec(spec)
+
+
+def test_validate_rejects_unknown_rule_type():
+    cfg = {
+        "version": 3,
+        "location": {"lat": 45, "lon": -121, "tz": "UTC"},
+        "holidays": [{"name": "x", "folder": "y", "rule": {"type": "lunar_eclipse"}}],
+    }
+    errs = S.validate_config(cfg)
+    assert any("unknown rule.type" in e for e in errs)
+
+
+def test_validate_rejects_bad_window_string():
+    cfg = {
+        "version": 3,
+        "location": {"lat": 45, "lon": -121, "tz": "UTC"},
+        "holidays": [{
+            "name": "x", "folder": "y",
+            "rule": {"type": "annual_date", "date": "07-04"},
+            "play_windows": [{"start": "dusck", "end": "24:00"}],
+        }],
+    }
+    errs = S.validate_config(cfg)
+    assert any("bad spec" in e for e in errs)
+
+
+def test_validate_rejects_bad_default_window():
+    cfg = {
+        "version": 3,
+        "location": {"lat": 45, "lon": -121, "tz": "UTC"},
+        "defaults": {"play_windows": [{"start": "25:00", "end": "24:00"}]},
+        "holidays": [],
+    }
+    errs = S.validate_config(cfg)
+    assert any("defaults" in e and "bad spec" in e for e in errs)
+
+
+# ---------- safe_folder (path traversal) ----------
+
+def test_safe_folder_accepts_direct_child(tmp_path):
+    import sys
+    sys.path.insert(0, "src")
+    import player
+
+    (tmp_path / "Halloween").mkdir()
+    assert player.safe_folder("Halloween", root=tmp_path) is not None
+
+
+def test_safe_folder_rejects_traversal(tmp_path):
+    import sys
+    sys.path.insert(0, "src")
+    import player
+
+    (tmp_path / "Halloween").mkdir()
+    assert player.safe_folder("../etc", root=tmp_path) is None
+    assert player.safe_folder("..", root=tmp_path) is None
+    assert player.safe_folder("Halloween/sub", root=tmp_path) is None
+    assert player.safe_folder("/etc", root=tmp_path) is None
+    assert player.safe_folder("", root=tmp_path) is None
+
+
+def test_safe_folder_rejects_missing(tmp_path):
+    import sys
+    sys.path.insert(0, "src")
+    import player
+    assert player.safe_folder("NoSuchHoliday", root=tmp_path) is None

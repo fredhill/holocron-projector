@@ -44,6 +44,14 @@ def load_config() -> dict:
 def save_config(cfg: dict) -> None:
     """Atomic write: tempfile + rename."""
     errs = S.validate_config(cfg)
+    # also reject saves that reference folders not on disk — caught at save time
+    # rather than at play time
+    available = set(list_video_folders())
+    if available:  # skip this check if the SMB mount isn't readable right now
+        for i, h in enumerate(cfg.get("holidays", [])):
+            f = h.get("folder")
+            if f and f not in available:
+                errs.append(f"holidays[{i}] ({h.get('name','?')}): folder {f!r} not under VIDEO_ROOT")
     if errs:
         raise ValueError("; ".join(errs))
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -308,4 +316,12 @@ def control(action: str):
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(name)s %(levelname)s %(message)s")
-    app.run(host=LISTEN_HOST, port=LISTEN_PORT, debug=False)
+    # Use waitress in prod (handles slow clients + concurrent requests cleanly);
+    # fall back to Flask's dev server if waitress isn't installed (e.g. local dev).
+    try:
+        from waitress import serve
+        log.info("waitress serving on %s:%d", LISTEN_HOST, LISTEN_PORT)
+        serve(app, host=LISTEN_HOST, port=LISTEN_PORT, threads=4)
+    except ImportError:
+        log.warning("waitress not installed — falling back to Flask dev server")
+        app.run(host=LISTEN_HOST, port=LISTEN_PORT, debug=False)

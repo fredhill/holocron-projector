@@ -7,6 +7,7 @@ module and drives I/O around it; tests exercise it directly.
 from __future__ import annotations
 
 import datetime as dt
+import re
 from dataclasses import dataclass
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -19,6 +20,18 @@ _WEEKDAYS = {
 }
 
 _SOLAR_ANCHORS = {"sunrise", "sunset", "dawn", "dusk"}
+
+_VALID_RULE_TYPES = {"annual_date", "annual_range", "floating", "easter", "span"}
+
+# matches HH:MM (00-23:00-59), 24:00, or <anchor>[±HH:MM]
+_WINDOW_RE = re.compile(
+    r"^(?:"
+    r"(?:[01]\d|2[0-3]):[0-5]\d"      # HH:MM
+    r"|24:00"                          # end-of-day sentinel
+    r"|(?:sunrise|sunset|dawn|dusk)"   # bare anchor
+    r"(?:[+-](?:[01]\d|2[0-3]):[0-5]\d)?"  # optional ±HH:MM offset
+    r")$"
+)
 
 
 # ---------- holiday rule matching ----------
@@ -213,21 +226,43 @@ def validate_location(loc: dict) -> list[str]:
     return errs
 
 
+def is_valid_window_spec(spec: str) -> bool:
+    """True if `spec` is a recognized window endpoint (HH:MM, 24:00, or anchor±HH:MM)."""
+    return isinstance(spec, str) and bool(_WINDOW_RE.match(spec.strip()))
+
+
 def validate_config(cfg: dict) -> list[str]:
     """Return a list of human-readable errors. Empty list = valid."""
     errs: list[str] = []
     if cfg.get("version") != 3:
         errs.append("version must be 3")
     errs.extend(validate_location(cfg.get("location") or {}))
+
+    # validate default windows too — if those are broken, every inheriting
+    # holiday breaks at runtime
+    for j, w in enumerate((cfg.get("defaults") or {}).get("play_windows", []) or []):
+        for end in ("start", "end"):
+            if end not in w:
+                errs.append(f"defaults.play_windows[{j}]: {end} required")
+            elif not is_valid_window_spec(w[end]):
+                errs.append(f"defaults.play_windows[{j}].{end}: bad spec {w[end]!r}")
+
     for i, h in enumerate(cfg.get("holidays", [])):
         tag = f"holidays[{i}] ({h.get('name', '?')})"
         for k in ("name", "folder", "rule"):
             if k not in h:
                 errs.append(f"{tag}: missing {k}")
         rule = h.get("rule") or {}
-        if "type" not in rule:
+        rt = rule.get("type")
+        if rt is None:
             errs.append(f"{tag}: rule.type required")
+        elif rt not in _VALID_RULE_TYPES:
+            errs.append(f"{tag}: unknown rule.type {rt!r} "
+                        f"(must be one of {sorted(_VALID_RULE_TYPES)})")
         for j, w in enumerate(h.get("play_windows", []) or []):
-            if "start" not in w or "end" not in w:
-                errs.append(f"{tag}.play_windows[{j}]: start/end required")
+            for end in ("start", "end"):
+                if end not in w:
+                    errs.append(f"{tag}.play_windows[{j}]: {end} required")
+                elif not is_valid_window_spec(w[end]):
+                    errs.append(f"{tag}.play_windows[{j}].{end}: bad spec {w[end]!r}")
     return errs
