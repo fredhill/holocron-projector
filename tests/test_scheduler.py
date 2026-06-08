@@ -171,3 +171,24 @@ def test_example_config_validates():
 
 def test_validate_rejects_bad_version():
     assert "version must be 3" in "; ".join(S.validate_config({"version": 2}))
+
+
+def test_validate_location_accepts_good():
+    assert S.validate_location({"lat": 45.59, "lon": -121.18, "tz": "America/Los_Angeles"}) == []
+
+
+def test_validate_location_rejects_bad_tz():
+    errs = S.validate_location({"lat": 0, "lon": 0, "tz": "America/Los_Angles"})
+    assert any("tz" in e for e in errs)
+
+
+def test_validate_location_rejects_out_of_range():
+    errs = S.validate_location({"lat": 100, "lon": -200, "tz": "UTC"})
+    assert any("lat" in e for e in errs)
+    assert any("lon" in e for e in errs)
+
+
+def test_validate_location_rejects_non_numeric():
+    errs = S.validate_location({"lat": "north", "lon": "west", "tz": "UTC"})
+    assert any("lat" in e for e in errs)
+    assert any("lon" in e for e in errs)

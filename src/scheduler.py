@@ -185,15 +185,40 @@ def holiday_windows(holiday: dict, defaults: dict) -> list[dict]:
     return defaults.get("play_windows", DEFAULT_WINDOWS)
 
 
+def validate_location(loc: dict) -> list[str]:
+    """Return a list of human-readable errors for a location dict."""
+    errs: list[str] = []
+    for k in ("lat", "lon", "tz"):
+        if k not in loc:
+            errs.append(f"location.{k} required")
+    if "lat" in loc:
+        try:
+            lat = float(loc["lat"])
+            if not -90.0 <= lat <= 90.0:
+                errs.append(f"location.lat out of range: {lat}")
+        except (TypeError, ValueError):
+            errs.append(f"location.lat not a number: {loc['lat']!r}")
+    if "lon" in loc:
+        try:
+            lon = float(loc["lon"])
+            if not -180.0 <= lon <= 180.0:
+                errs.append(f"location.lon out of range: {lon}")
+        except (TypeError, ValueError):
+            errs.append(f"location.lon not a number: {loc['lon']!r}")
+    if "tz" in loc:
+        try:
+            ZoneInfo(loc["tz"])
+        except Exception:
+            errs.append(f"location.tz not a valid IANA zone: {loc['tz']!r}")
+    return errs
+
+
 def validate_config(cfg: dict) -> list[str]:
     """Return a list of human-readable errors. Empty list = valid."""
     errs: list[str] = []
     if cfg.get("version") != 3:
         errs.append("version must be 3")
-    loc = cfg.get("location") or {}
-    for k in ("lat", "lon", "tz"):
-        if k not in loc:
-            errs.append(f"location.{k} required")
+    errs.extend(validate_location(cfg.get("location") or {}))
     for i, h in enumerate(cfg.get("holidays", [])):
         tag = f"holidays[{i}] ({h.get('name', '?')})"
         for k in ("name", "folder", "rule"):

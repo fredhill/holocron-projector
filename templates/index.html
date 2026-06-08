@@ -85,7 +85,8 @@
 
 <section class="meta">
   <h2>Location</h2>
-  <p>{{ cfg.location.lat }}, {{ cfg.location.lon }} ({{ cfg.location.tz }})</p>
+  <p>{{ cfg.location.lat }}, {{ cfg.location.lon }} ({{ cfg.location.tz }})
+     &nbsp;<a href="{{ url_for('location_edit') }}">Edit</a></p>
 </section>
 
 {% endblock %}

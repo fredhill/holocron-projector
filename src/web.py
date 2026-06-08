@@ -259,6 +259,36 @@ def holiday_delete(idx: int):
     return redirect(url_for("index"))
 
 
+@app.route("/location", methods=["GET", "POST"])
+def location_edit():
+    cfg = load_config()
+    if request.method == "POST":
+        new_loc = {
+            "lat": request.form.get("lat", "").strip(),
+            "lon": request.form.get("lon", "").strip(),
+            "tz":  request.form.get("tz", "").strip(),
+        }
+        # coerce numerics if they parse, so the saved JSON stays clean
+        try:
+            new_loc["lat"] = float(new_loc["lat"])
+            new_loc["lon"] = float(new_loc["lon"])
+        except ValueError:
+            pass  # validate_location will surface the error
+
+        errs = S.validate_location(new_loc)
+        if errs:
+            return render_template("location.html", location=new_loc,
+                                   error="; ".join(errs))
+        cfg["location"] = new_loc
+        try:
+            save_config(cfg)
+        except ValueError as e:
+            return render_template("location.html", location=new_loc, error=str(e))
+        publish_cmd("reload")
+        return redirect(url_for("index"))
+    return render_template("location.html", location=cfg["location"], error=None)
+
+
 @app.route("/control/<action>", methods=["POST"])
 def control(action: str):
     folder = request.form.get("folder", "").strip()

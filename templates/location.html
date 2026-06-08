@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Holocron — Location{% endblock %}
+{% block content %}
+
+<h2>Location</h2>
+
+<p class="muted">
+  Used to compute sunrise / sunset / dawn / dusk for play windows that use
+  solar anchors. The timezone also determines what "today" means and handles
+  DST automatically. Find coordinates at
+  <a href="https://www.openstreetmap.org/" target="_blank" rel="noopener">openstreetmap.org</a>
+  (right-click → "Show address"). Use a standard IANA timezone name like
+  <code>America/Los_Angeles</code> or <code>America/New_York</code>.
+</p>
+
+{% if error %}<p class="error">Error: {{ error }}</p>{% endif %}
+
+<form method="post" class="holiday-form">
+  <fieldset>
+    <legend>Coordinates</legend>
+    <label>Latitude (-90 to 90)
+      <input name="lat" type="text" inputmode="decimal" required
+             value="{{ location.lat if location else '' }}">
+    </label>
+    <label>Longitude (-180 to 180)
+      <input name="lon" type="text" inputmode="decimal" required
+             value="{{ location.lon if location else '' }}">
+    </label>
+    <label>Timezone (IANA name)
+      <input name="tz" type="text" required
+             value="{{ location.tz if location else '' }}"
+             placeholder="America/Los_Angeles">
+    </label>
+  </fieldset>
+
+  <div class="form-actions">
+    <button type="submit">Save</button>
+    <a href="{{ url_for('index') }}">Cancel</a>
+  </div>
+</form>
+
+{% endblock %}
