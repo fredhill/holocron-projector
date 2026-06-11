@@ -83,6 +83,37 @@ def publish_cmd(payload: str) -> None:
         log.warning("MQTT publish failed: %s", e)
 
 
+# Icon shown next to each holiday in the UI. Matched against the holiday
+# name first, then the folder, case-insensitive; first hit wins, so more
+# specific phrases go before generic ones.
+HOLIDAY_ICONS = [
+    ("new year", "🎇"),
+    ("christmas", "🎄"),
+    ("halloween", "🎃"),
+    ("thanksgiving", "🦃"),
+    ("easter", "🐰"),
+    ("patrick", "🍀"),
+    ("star wars", "🪐"),
+    ("independence", "🎆"),
+    ("veteran", "🎖️"),
+    ("memorial", "🇺🇸"),
+    ("birthday", "🎂"),
+    ("valentine", "❤️"),
+    ("hanukkah", "🕎"),
+]
+
+
+def holiday_icon(holiday: dict) -> str:
+    haystack = f"{holiday.get('name', '')} {holiday.get('folder', '')}".lower()
+    for needle, icon in HOLIDAY_ICONS:
+        if needle in haystack:
+            return icon
+    return "📅"
+
+
+app.jinja_env.globals["holiday_icon"] = holiday_icon
+
+
 def list_video_folders() -> list[str]:
     if not VIDEO_ROOT.is_dir():
         return []

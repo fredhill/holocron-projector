@@ -45,6 +45,8 @@ T_HEARTBEAT = "holocron/heartbeat"
 TICK_SECONDS = 30
 HEARTBEAT_SECONDS = 60
 
+TTY_PATH = os.environ.get("HOLOCRON_TTY", "/dev/tty1")
+
 VIDEO_EXTS = {".mp4", ".mkv", ".mov", ".m4v"}
 
 MPV_ARGS = [
@@ -61,6 +63,23 @@ MPV_ARGS = [
 ]
 
 log = logging.getLogger("holocron.player")
+
+
+def blank_console() -> None:
+    """Clear the tty and hide the cursor so the projector shows black,
+    not boot messages, whenever mpv isn't running.
+
+    mpv restores the VT when it exits, which brings the kernel console
+    (with whatever scrollback it had) back onto the projector. Clearing
+    immediately after each stop — and once at startup — keeps the output
+    black between videos.
+    """
+    try:
+        with open(TTY_PATH, "wb") as t:
+            # ESC[2J clear screen, ESC[3J clear scrollback, ESC[H home, ESC[?25l hide cursor
+            t.write(b"\x1b[2J\x1b[3J\x1b[H\x1b[?25l")
+    except OSError as e:
+        log.debug("could not blank %s: %s", TTY_PATH, e)
 
 
 def safe_folder(name: str, root: Path = VIDEO_ROOT) -> Path | None:
@@ -217,6 +236,8 @@ class MpvProc:
             log.warning("error stopping mpv: %s", e)
         self.proc = None
         self.current_folder = None
+        # mpv hands the VT back showing the kernel console — black it out
+        blank_console()
 
 
 # ---------- main loop ----------
@@ -399,6 +420,9 @@ class Holocron:
 
         signal.signal(signal.SIGTERM, self._signal)
         signal.signal(signal.SIGINT, self._signal)
+
+        # start with a black screen, not leftover boot messages
+        blank_console()
 
         self.cfg_store.load()
 

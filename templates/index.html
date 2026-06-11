@@ -8,7 +8,7 @@
     <p>
       <span class="status-pill">{{ "playing" if status.in_window else "idle" }}</span>
     </p>
-    <p><strong>Active holiday:</strong> {{ status.holiday.name }} ({{ status.holiday.folder }})</p>
+    <p><strong>Active holiday:</strong> <span class="holiday-icon">{{ holiday_icon(status.holiday) }}</span> {{ status.holiday.name }} ({{ status.holiday.folder }})</p>
     <p><strong>Today's windows:</strong></p>
     <ul>
       {% for w in status.windows %}
@@ -67,7 +67,7 @@
       {% for h in cfg.holidays %}
       <tr>
         <td>{{ loop.index0 }}</td>
-        <td>{{ h.name }}</td>
+        <td><span class="holiday-icon">{{ holiday_icon(h) }}</span> {{ h.name }}</td>
         <td>{{ h.folder }}</td>
         <td>{{ h.rule.type }}</td>
         <td>

@@ -124,6 +124,14 @@ code {
 }
 
 .muted { color: var(--muted); font-size: 0.93rem; }
+
+.holiday-icon {
+  display: inline-block;
+  margin-right: 0.15rem;
+  font-size: 1.05em;
+  /* emoji render in their own color; keep them from inheriting text effects */
+  font-style: normal;
+}
 .error {
   background: var(--error-soft);
   border-left: 3px solid var(--error);
