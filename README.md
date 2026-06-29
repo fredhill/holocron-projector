@@ -6,6 +6,9 @@ chosen automatically by date, with evening windows that start at **dusk** so
 they track the seasons. Holocron owns scheduling; Homey only mirrors the
 `holocron/projector` MQTT topic to the projector.
 
+**New here? Start with the [Build Guide](docs/BUILD_GUIDE.md)** — how to build,
+deploy, configure, and operate the whole system.
+
 See [docs/Claude_Code_Handoff_Holocron_v3.md](docs/Claude_Code_Handoff_Holocron_v3.md)
 for the full spec — it is the source of truth.
 
