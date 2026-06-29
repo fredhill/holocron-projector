@@ -50,6 +50,30 @@ can take DRM master on tty1). It does **not** touch `/etc/fstab` or
 
 Broker: `10.0.0.147:1883`, unauthenticated, client id `holocron`.
 
+## Audio
+
+mpv drives ALSA directly (Pi OS Lite has no sound server). The player sends
+audio to the Pi's analog 3.5mm jack, downmixed to mono for one porch speaker.
+See [docs/Holocron_Audio_Addon_v2.md](docs/Holocron_Audio_Addon_v2.md) for the
+hardware (amp + speaker) and signal path.
+
+The installer enables `dtparam=audio=on` in the boot config (reboot required
+the first time). Defaults assume the jack is `alsa/plughw:CARD=Headphones` —
+confirm with `mpv --audio-device=help`. Override via env in
+`holocron-player.service` if needed:
+
+| Env var | Default | Notes |
+|---|---|---|
+| `HOLOCRON_AUDIO` | `on` | set `off` to mute (passes `--no-audio`) |
+| `HOLOCRON_AUDIO_DEVICE` | `alsa/plughw:CARD=Headphones` | exact ALSA device; empty = mpv default |
+| `HOLOCRON_AUDIO_CHANNELS` | `mono` | one speaker; set `stereo` for two |
+
+Prove the jack works before relying on it (no amp needed):
+
+```bash
+speaker-test -D plughw:CARD=Headphones -c2 -twav
+```
+
 ## Local development
 
 The scheduler logic is pure functions in `src/scheduler.py` — runs and tests

@@ -278,3 +278,40 @@ def test_safe_folder_rejects_missing(tmp_path):
     sys.path.insert(0, "src")
     import player
     assert player.safe_folder("NoSuchHoliday", root=tmp_path) is None
+
+
+# ---------- mpv audio args ----------
+
+def test_audio_args_default_targets_analog_jack():
+    import sys
+    sys.path.insert(0, "src")
+    import player
+    args = player._audio_args()
+    assert "--ao=alsa" in args
+    assert any(a.startswith("--audio-device=") for a in args)
+    assert "--audio-channels=mono" in args
+
+
+def test_mpv_args_include_audio_after_compose():
+    """The start() arg build strips --really-quiet but must keep audio flags."""
+    import sys
+    sys.path.insert(0, "src")
+    import player
+    composed = [a for a in player.MPV_ARGS if a != "--really-quiet"]
+    assert "--ao=alsa" in composed
+    assert "--really-quiet" not in composed
+    # video flags still present too
+    assert "--vo=drm" in composed
+
+
+def test_audio_args_can_disable(monkeypatch):
+    import importlib, sys
+    sys.path.insert(0, "src")
+    monkeypatch.setenv("HOLOCRON_AUDIO", "off")
+    import player
+    importlib.reload(player)
+    try:
+        assert player._audio_args() == ["--no-audio"]
+    finally:
+        monkeypatch.delenv("HOLOCRON_AUDIO", raising=False)
+        importlib.reload(player)

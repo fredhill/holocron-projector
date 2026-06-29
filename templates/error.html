@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Holocron — Error{% endblock %}
+{% block content %}
+
+<section class="status status-card idle">
+  <h2>Something went wrong</h2>
+  <p>The page couldn't be rendered. The scheduler/player service is separate and
+     is unaffected by this — your holidays keep playing on schedule.</p>
+  <p class="muted">Most often this is a temporary hiccup reading the video share
+     (<code>{{ "/mnt/jedi-archives" }}</code>). Try again in a moment.</p>
+  {% if message %}<p class="error">{{ message }}</p>{% endif %}
+  <p><a href="{{ url_for('index') }}" class="button">Reload</a></p>
+</section>
+
+{% endblock %}

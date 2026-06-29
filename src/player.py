@@ -49,7 +49,19 @@ TTY_PATH = os.environ.get("HOLOCRON_TTY", "/dev/tty1")
 
 VIDEO_EXTS = {".mp4", ".mkv", ".mov", ".m4v"}
 
-MPV_ARGS = [
+# ---- audio ----
+# Pi OS Lite ships no sound server (no PulseAudio/PipeWire), so mpv's automatic
+# audio output finds nothing and stays silent. We talk to ALSA directly and name
+# the analog jack explicitly. The device name varies per Pi/OS — confirm with
+# `mpv --audio-device=help` (or `aplay -l`) and override via HOLOCRON_AUDIO_DEVICE
+# if the default doesn't match. Empty string = let mpv pick the ALSA default.
+# Requires `dtparam=audio=on` in /boot/firmware/config.txt (installer ensures it).
+AUDIO_ENABLED = os.environ.get("HOLOCRON_AUDIO", "on").lower() not in ("0", "off", "false", "no")
+AUDIO_AO = os.environ.get("HOLOCRON_AO", "alsa")
+AUDIO_DEVICE = os.environ.get("HOLOCRON_AUDIO_DEVICE", "alsa/plughw:CARD=Headphones")
+AUDIO_CHANNELS = os.environ.get("HOLOCRON_AUDIO_CHANNELS", "mono")  # one porch speaker
+
+_MPV_BASE = [
     "mpv",
     "--vo=drm",
     "--hwdec=auto",
@@ -61,6 +73,20 @@ MPV_ARGS = [
     "--no-input-terminal",
     "--really-quiet",
 ]
+
+
+def _audio_args() -> list[str]:
+    if not AUDIO_ENABLED:
+        return ["--no-audio"]
+    args = [f"--ao={AUDIO_AO}"]
+    if AUDIO_DEVICE:
+        args.append(f"--audio-device={AUDIO_DEVICE}")
+    if AUDIO_CHANNELS:
+        args.append(f"--audio-channels={AUDIO_CHANNELS}")
+    return args
+
+
+MPV_ARGS = _MPV_BASE + _audio_args()
 
 log = logging.getLogger("holocron.player")
 

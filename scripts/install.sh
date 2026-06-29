@@ -66,8 +66,23 @@ EOF
 echo "==> disable getty@tty1 (mpv needs DRM master on tty1)"
 systemctl disable --now getty@tty1.service || true
 
-echo "==> ensure $USER_NAME is in video/render groups"
-usermod -aG video,render "$USER_NAME"
+echo "==> ensure $USER_NAME is in video/render/audio groups"
+usermod -aG video,render,audio "$USER_NAME"
+
+echo "==> ensure analog audio is enabled (dtparam=audio=on)"
+BOOT_CONFIG=/boot/firmware/config.txt
+[[ -f "$BOOT_CONFIG" ]] || BOOT_CONFIG=/boot/config.txt   # pre-Bookworm fallback
+if [[ -f "$BOOT_CONFIG" ]]; then
+  if grep -Eq '^\s*dtparam=audio=on' "$BOOT_CONFIG"; then
+    echo "    already enabled in $BOOT_CONFIG"
+  else
+    echo "dtparam=audio=on" >> "$BOOT_CONFIG"
+    echo "    added dtparam=audio=on to $BOOT_CONFIG — REBOOT REQUIRED for audio"
+    NEED_REBOOT=1
+  fi
+else
+  echo "    WARNING: no boot config found; enable dtparam=audio=on manually"
+fi
 
 echo "==> install systemd units"
 install -m 644 "$REPO_DIR/systemd/holocron-player.service" /etc/systemd/system/
@@ -82,3 +97,10 @@ systemctl --no-pager --lines=5 status holocron-player.service || true
 systemctl --no-pager --lines=5 status holocron-web.service || true
 echo
 echo "Web UI: http://$(hostname -I | awk '{print $1}'):8080"
+if [[ "${NEED_REBOOT:-0}" == "1" ]]; then
+  echo
+  echo "*** Reboot required: analog audio (dtparam=audio=on) was just enabled. ***"
+  echo "    After reboot, verify the jack name with:  mpv --audio-device=help"
+  echo "    If it isn't 'alsa/plughw:CARD=Headphones', set HOLOCRON_AUDIO_DEVICE"
+  echo "    in /etc/systemd/system/holocron-player.service and restart the unit."
+fi

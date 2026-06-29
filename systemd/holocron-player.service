@@ -5,12 +5,18 @@ Wants=network-online.target
 
 [Service]
 User=holocron
-SupplementaryGroups=video render
+SupplementaryGroups=video render audio
 StandardInput=tty
 TTYPath=/dev/tty1
 TTYReset=yes
 TTYVHangup=yes
 WorkingDirectory=/opt/holocron/src
+# Audio defaults to the Pi's analog jack (alsa/plughw:CARD=Headphones), downmixed
+# to mono for one porch speaker. If `mpv --audio-device=help` shows a different
+# name, uncomment and set it here, then: systemctl daemon-reload && restart.
+#Environment=HOLOCRON_AUDIO_DEVICE=alsa/plughw:CARD=Headphones
+#Environment=HOLOCRON_AUDIO_CHANNELS=mono
+#Environment=HOLOCRON_AUDIO=off
 ExecStart=/opt/holocron/venv/bin/python /opt/holocron/src/player.py
 Restart=always
 RestartSec=5

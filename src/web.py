@@ -115,9 +115,16 @@ app.jinja_env.globals["holiday_icon"] = holiday_icon
 
 
 def list_video_folders() -> list[str]:
-    if not VIDEO_ROOT.is_dir():
+    # A wedged/stale CIFS mount can make is_dir()/iterdir() raise OSError (or the
+    # mount briefly vanish during a network blip). Degrade to an empty list and
+    # log, rather than 500-ing the whole page.
+    try:
+        if not VIDEO_ROOT.is_dir():
+            return []
+        return sorted(p.name for p in VIDEO_ROOT.iterdir() if p.is_dir())
+    except OSError as e:
+        log.warning("could not list video folders (%s): %s", VIDEO_ROOT, e)
         return []
-    return sorted(p.name for p in VIDEO_ROOT.iterdir() if p.is_dir())
 
 
 def now_and_next(cfg: dict) -> dict:
@@ -240,6 +247,16 @@ def _parse_span_anchor(form, prefix: str) -> dict:
 
 
 # ---------- routes ----------
+
+@app.errorhandler(Exception)
+def handle_unexpected(e):
+    # Re-raise HTTP errors (404/400/etc.) so their normal handling applies.
+    from werkzeug.exceptions import HTTPException
+    if isinstance(e, HTTPException):
+        return e
+    log.exception("unhandled error serving %s", request.path)
+    return render_template("error.html", message=str(e)), 500
+
 
 @app.route("/")
 def index():
